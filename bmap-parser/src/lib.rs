@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use std::io::Result as IOResult;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write, Stdout};
 
 /// Trait that can only seek further forwards
 pub trait SeekForward {
@@ -69,7 +69,8 @@ where
             .seek_forward(forward)
             .map_err(CopyError::WriteError)?;
 
-        let mut left = range.length() as usize;
+        let bytes_to_copy = range.length() as usize;
+        let mut left = bytes_to_copy;
         while left > 0 {
             let toread = left.min(buf.len());
             let r = input
@@ -83,6 +84,10 @@ where
                 .write_all(&buf[0..r])
                 .map_err(CopyError::WriteError)?;
             left -= r;
+
+            let bytes_copied = bytes_to_copy - left;
+            let progess = bytes_copied as f32 / bytes_to_copy as f32;
+            println!("{}% [{}/{}]", progess, bytes_copied, bytes_to_copy);
         }
         let digest = hasher.finalize_reset();
         if range.checksum().as_slice() != digest.as_slice() {
@@ -109,6 +114,10 @@ where
 
     let buf = v.as_mut_slice();
     let mut position = 0;
+
+    let num_block_map = map.block_map().len();
+    let mut idx_block_map = 1;
+
     for range in map.block_map() {
         let forward = range.offset() - position;
         input
@@ -121,7 +130,11 @@ where
             .map_err(CopyError::WriteError)
             .await?;
 
-        let mut left = range.length() as usize;
+        // Progress Bar so you don't have to stare at void
+        let bytes_to_copy = range.length() as usize;
+        let mut left = bytes_to_copy;
+        let mut stdout = std::io::stdout();
+
         while left > 0 {
             let toread = left.min(buf.len());
             let r = input
@@ -137,6 +150,11 @@ where
                 .await
                 .map_err(CopyError::WriteError)?;
             left -= r;
+
+            let bytes_copied = bytes_to_copy - left;
+            let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
+            print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
+            let _ = stdout.flush();
         }
         let digest = hasher.finalize_reset();
         if range.checksum().as_slice() != digest.as_slice() {
@@ -144,6 +162,9 @@ where
         }
 
         position = range.offset() + range.length();
+        
+        println!("");
+        idx_block_map += 1;
     }
     Ok(())
 }
