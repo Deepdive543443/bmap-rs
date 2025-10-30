@@ -9,7 +9,10 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use std::io::Result as IOResult;
-use std::io::{Read, Seek, SeekFrom, Write, Stdout};
+use std::io::{Read, Seek, SeekFrom, Write};
+
+#[cfg(feature = "progress_bar")]
+use std::io::Stdout;
 
 /// Trait that can only seek further forwards
 pub trait SeekForward {
@@ -62,6 +65,12 @@ where
 
     let buf = v.as_mut_slice();
     let mut position = 0;
+
+    #[cfg(feature = "progress_bar")]
+    let num_block_map = map.block_map().len();
+    #[cfg(feature = "progress_bar")]
+    let mut idx_block_map = 1;
+
     for range in map.block_map() {
         let forward = range.offset() - position;
         input.seek_forward(forward).map_err(CopyError::ReadError)?;
@@ -71,6 +80,10 @@ where
 
         let bytes_to_copy = range.length() as usize;
         let mut left = bytes_to_copy;
+
+        #[cfg(feature = "progress_bar")]
+        let mut stdout = std::io::stdout();
+
         while left > 0 {
             let toread = left.min(buf.len());
             let r = input
@@ -85,9 +98,13 @@ where
                 .map_err(CopyError::WriteError)?;
             left -= r;
 
-            let bytes_copied = bytes_to_copy - left;
-            let progess = bytes_copied as f32 / bytes_to_copy as f32;
-            println!("{}% [{}/{}]", progess, bytes_copied, bytes_to_copy);
+            #[cfg(feature = "progress_bar")]
+            {
+                let bytes_copied = bytes_to_copy - left;
+                let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
+                print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
+                let _ = stdout.flush();
+            }
         }
         let digest = hasher.finalize_reset();
         if range.checksum().as_slice() != digest.as_slice() {
@@ -95,8 +112,13 @@ where
         }
 
         position = range.offset() + range.length();
-    }
 
+        #[cfg(feature = "progress_bar")]
+        {
+            println!("");
+            idx_block_map += 1;
+        }
+    }
     Ok(())
 }
 
@@ -115,7 +137,9 @@ where
     let buf = v.as_mut_slice();
     let mut position = 0;
 
+    #[cfg(feature = "progress_bar")]
     let num_block_map = map.block_map().len();
+    #[cfg(feature = "progress_bar")]
     let mut idx_block_map = 1;
 
     for range in map.block_map() {
@@ -133,6 +157,8 @@ where
         // Progress Bar so you don't have to stare at void
         let bytes_to_copy = range.length() as usize;
         let mut left = bytes_to_copy;
+
+        #[cfg(feature = "progress_bar")]
         let mut stdout = std::io::stdout();
 
         while left > 0 {
@@ -151,10 +177,13 @@ where
                 .map_err(CopyError::WriteError)?;
             left -= r;
 
-            let bytes_copied = bytes_to_copy - left;
-            let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
-            print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
-            let _ = stdout.flush();
+            #[cfg(feature = "progress_bar")]
+            {
+                let bytes_copied = bytes_to_copy - left;
+                let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
+                print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
+                let _ = stdout.flush();
+            }
         }
         let digest = hasher.finalize_reset();
         if range.checksum().as_slice() != digest.as_slice() {
@@ -163,8 +192,11 @@ where
 
         position = range.offset() + range.length();
         
-        println!("");
-        idx_block_map += 1;
+        #[cfg(feature = "progress_bar")]
+        {
+            println!("");
+            idx_block_map += 1;
+        }
     }
     Ok(())
 }
