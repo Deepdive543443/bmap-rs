@@ -67,9 +67,9 @@ where
     let mut position = 0;
 
     #[cfg(feature = "progress_bar")]
-    let num_block_map = map.block_map().len();
+    let num_range = map.block_map().len();
     #[cfg(feature = "progress_bar")]
-    let mut idx_block_map = 1;
+    let mut idx_range = 1;
 
     for range in map.block_map() {
         let forward = range.offset() - position;
@@ -102,7 +102,7 @@ where
             {
                 let bytes_copied = bytes_to_copy - left;
                 let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
-                print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
+                print!("\rCopying Block [{:3}/{:3}] {:3}% [{}/{}]", idx_range, num_range, progess, bytes_copied, bytes_to_copy);
                 let _ = stdout.flush();
             }
         }
@@ -116,7 +116,7 @@ where
         #[cfg(feature = "progress_bar")]
         {
             println!("");
-            idx_block_map += 1;
+            idx_range += 1;
         }
     }
     Ok(())
@@ -138,9 +138,9 @@ where
     let mut position = 0;
 
     #[cfg(feature = "progress_bar")]
-    let num_block_map = map.block_map().len();
+    let num_range = map.block_map().len();
     #[cfg(feature = "progress_bar")]
-    let mut idx_block_map = 1;
+    let mut idx_range = 1;
 
     for range in map.block_map() {
         let forward = range.offset() - position;
@@ -181,7 +181,7 @@ where
             {
                 let bytes_copied = bytes_to_copy - left;
                 let progess = (bytes_copied as f32 / bytes_to_copy as f32 * 100.0) as u8;
-                print!("\rCopying Block [{}/{}] {}% [{}/{}]", idx_block_map, num_block_map, progess, bytes_copied, bytes_to_copy);
+                print!("\rCopying Range [{:3}/{:3}] {:3}% [{}/{}]", idx_range, num_range, progess, bytes_copied, bytes_to_copy);
                 let _ = stdout.flush();
             }
         }
@@ -195,7 +195,7 @@ where
         #[cfg(feature = "progress_bar")]
         {
             println!("");
-            idx_block_map += 1;
+            idx_range += 1;
         }
     }
     Ok(())
